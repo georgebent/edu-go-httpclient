@@ -211,3 +211,49 @@ func TestMockResponseIncludesHTTPStatusText(t *testing.T) {
 		t.Fatalf("expected full HTTP status, got %q", response.Status)
 	}
 }
+
+func TestBuildSnapshotsBuilderConfiguration(t *testing.T) {
+	seenUserAgents := make([]string, 0, 2)
+	httpClient := &http.Client{
+		Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+			seenUserAgents = append(seenUserAgents, request.Header.Get(gomime.HEADER_USER_AGENT))
+
+			return &http.Response{
+				Status:     "200 OK",
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader("ok")),
+				Request:    request,
+			}, nil
+		}),
+	}
+
+	builder := NewBuilder().
+		SetHttpClient(httpClient).
+		SetUserAgent("first-agent")
+
+	firstClient := builder.Build()
+
+	builder.SetUserAgent("second-agent")
+	secondClient := builder.Build()
+
+	if _, err := firstClient.Get("http://example.test/first", nil); err != nil {
+		t.Fatalf("expected nil error for first client, got %v", err)
+	}
+
+	if _, err := secondClient.Get("http://example.test/second", nil); err != nil {
+		t.Fatalf("expected nil error for second client, got %v", err)
+	}
+
+	if len(seenUserAgents) != 2 {
+		t.Fatalf("expected 2 requests, got %d", len(seenUserAgents))
+	}
+
+	if seenUserAgents[0] != "first-agent" {
+		t.Fatalf("expected first client to keep original user agent, got %q", seenUserAgents[0])
+	}
+
+	if seenUserAgents[1] != "second-agent" {
+		t.Fatalf("expected second client to use updated user agent, got %q", seenUserAgents[1])
+	}
+}
