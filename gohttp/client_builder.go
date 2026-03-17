@@ -34,8 +34,9 @@ func NewBuilder() ClientBuilder {
 }
 
 func (c *clientBuilder) Build() HttpClient {
+	builderSnapshot := c.clone()
 	client := Client{
-		builder: c,
+		builder: builderSnapshot,
 	}
 
 	return &client
@@ -81,4 +82,28 @@ func (c *clientBuilder) SetUserAgent(userAgent string) ClientBuilder {
 	c.userAgent = userAgent
 
 	return c
+}
+
+func (c *clientBuilder) clone() *clientBuilder {
+	if c == nil {
+		return &clientBuilder{}
+	}
+
+	clone := *c
+	clone.headers = cloneHeaders(c.headers)
+
+	return &clone
+}
+
+func cloneHeaders(headers http.Header) http.Header {
+	if headers == nil {
+		return nil
+	}
+
+	clone := make(http.Header, len(headers))
+	for key, values := range headers {
+		clone[key] = append([]string(nil), values...)
+	}
+
+	return clone
 }
